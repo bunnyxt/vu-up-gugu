@@ -1,0 +1,8 @@
+{
+  "name": "update_data",
+  "version": "0.0.1",
+  "main": "index.js",
+  "dependencies": {
+    "promise-mysql": "^5.0.3"
+  }
+}
