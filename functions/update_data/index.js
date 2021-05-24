@@ -47,8 +47,8 @@ async function getUpInfoList(upMidList, conn) {
       where m.mid = ?;`;
     let result = await conn.query(sql, mid);
     result = result[0];
-    if (result.aid === null) {
-      console.log(`WARNING: mid ${mid} last_video is NULL, this should not happen, skip.`);
+    if (result === undefined) {
+      console.log(`WARNING: cannot find last_video of member mid ${mid}, this should not happen, skip.`);
       continue;
     }
     upInfoList.push({
@@ -91,6 +91,79 @@ async function getUpInfoList(upMidList, conn) {
   return upInfoList;
 }
 
+async function getUpVideos(upMidList, conn) {
+  const upVideos = {};
+  const videoCache = {};
+  for (const mid of upMidList) {
+    // 获取创作者投稿或参与的视频的mid
+    let videoAidList = [];
+    let sql = `select aid from tdd_video_staff where mid = ?;`;
+    let results = await conn.query(sql, mid);
+    for (const r of results) {
+      videoAidList.push(r.aid);
+    }
+    sql = `select aid from tdd_video where mid = ?;`;
+    results = await conn.query(sql, mid);
+    for (const r of results) {
+      videoAidList.push(r.aid);
+    }
+    videoAidList = [...new Set(videoAidList)];
+    // 获取这些视频的详细信息
+    const videoList = [];
+    for (const aid of videoAidList) {
+      if (videoCache[aid] === undefined) {
+        sql = `
+          select v.aid, bvid, videos, tid, tname, pic, title, pubdate, \`desc\`, tags, 
+            m.mid, sex, name, face, sign,
+            r.added as record_added, \`view\`, danmaku, reply, favorite, coin, share, \`like\`
+          from tdd_video v 
+            left join tdd_member m on v.mid = m.mid 
+            left join tdd_video_record r on v.laststat = r.id 
+          where v.aid = ?;`;
+          let result = await conn.query(sql, aid);
+          result = result[0];
+          if (result === undefined) {
+            console.log(`WARNING: cannot find video aid ${aid}, this should not happen, skip.`);
+            continue;
+          }
+          videoCache[aid] = {
+            aid: result.aid,
+            bvid: result.bvid,
+            videos: result.videos,
+            tid: result.tid,
+            tname: result.tname,
+            pic: result.pic,
+            title: result.title,
+            pubdate: result.pubdate,
+            desc: result.desc,
+            tags: result.tags,
+            up: {
+              mid: result.mid,
+              sex: result.sex,
+              name: result.name,
+              face: result.face,
+              sign: result.sign,
+            },
+            last_record: {
+              added: result.record_added,
+              view: result.view,
+              danmaku: result.danmaku,
+              reply: result.reply,
+              favorite: result.favorite,
+              coin: result.coin,
+              share: result.share,
+              like: result.like,
+            },
+          };
+      }
+      videoList.push(videoCache[aid]);
+    }
+    videoList.sort((a, b) => b.pubdate - a.pubdate);  // 按投稿时间从新到旧排序
+    upVideos[mid] = videoList;
+  }
+  return upVideos;
+}
+
 exports.main = async function () {
   const conn = await getDbConn();
 
@@ -100,7 +173,10 @@ exports.main = async function () {
   // 步骤2: 获取这些创作者们的个人信息
   const upInfoList = await getUpInfoList(upMidList, conn);
 
+  // 步骤3: 获取创作者们的视频列表
+  const upVideos = await getUpVideos(upMidList, conn);
+
   conn.end();
 
-  return upInfoList;
+  return upVideos;
 };
