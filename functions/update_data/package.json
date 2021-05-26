@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "main": "index.js",
   "dependencies": {
-    "promise-mysql": "^5.0.3"
+    "promise-mysql": "^5.0.3",
+    "@cloudbase/node-sdk": "^2.5.2"
   }
 }

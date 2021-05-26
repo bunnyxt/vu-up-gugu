@@ -1,4 +1,8 @@
 const mysql = require('promise-mysql');
+const cloudbase = require("@cloudbase/node-sdk");
+
+const app = cloudbase.init({});
+const db = app.database();
 
 const getDbConn = async () => {
   return await mysql.createConnection({
@@ -61,31 +65,6 @@ async function getUpInfoList(upMidList, conn) {
       follower: result.follower,
       follower_added: result.follower_added,
     });
-    // const videoStaffCache = {};
-    // if (result.hasstaff === 0) {
-    //   data.last_video.staff = null;
-    // } else {
-    //   if (!videoStaffCache[data.last_video.aid]) {
-    //     const sql = `
-    //       select s.mid, s.title, m.name, m.face, m.sex, m.sign 
-    //       from tdd_video_staff s left join tdd_member m on s.mid = m.mid 
-    //       where aid = ?;`
-    //     const staffResults = await conn.query(sql, data.last_video.aid);
-    //     const staff = [];
-    //     for (const r of staffResults) {
-    //       staff.push({
-    //         mid: r.mid,
-    //         title: r.title,
-    //         name: r.name, 
-    //         face: r.face,
-    //         sex: r.sex,
-    //         sign: r.sign,
-    //       });
-    //     }
-    //     videoStaffCache[data.last_video.aid] = staff;
-    //   }
-    //   data.last_video.staff = videoStaffCache[data.last_video.aid];
-    // }
   }
 
   return upInfoList;
@@ -94,6 +73,7 @@ async function getUpInfoList(upMidList, conn) {
 async function getUpVideos(upMidList, conn) {
   const upVideos = {};
   const videoCache = {};
+  const videoStaffCache = {};
   for (const mid of upMidList) {
     // 获取创作者投稿或参与的视频的mid
     let videoAidList = [];
@@ -113,48 +93,72 @@ async function getUpVideos(upMidList, conn) {
     for (const aid of videoAidList) {
       if (videoCache[aid] === undefined) {
         sql = `
-          select v.aid, bvid, videos, tid, tname, pic, title, pubdate, \`desc\`, tags, 
+          select v.aid, bvid, videos, tid, tname, pic, title, pubdate, \`desc\`, tags, hasstaff,
             m.mid, sex, name, face, sign,
             r.added as record_added, \`view\`, danmaku, reply, favorite, coin, share, \`like\`
           from tdd_video v 
             left join tdd_member m on v.mid = m.mid 
             left join tdd_video_record r on v.laststat = r.id 
           where v.aid = ?;`;
-          let result = await conn.query(sql, aid);
-          result = result[0];
-          if (result === undefined) {
-            console.log(`WARNING: cannot find video aid ${aid}, this should not happen, skip.`);
-            continue;
+        let result = await conn.query(sql, aid);
+        result = result[0];
+        if (result === undefined) {
+          console.log(`WARNING: cannot find video aid ${aid}, this should not happen, skip.`);
+          continue;
+        }
+        let staff = null;
+        if (result.hasstaff !== 0) {
+          if (!videoStaffCache[result.aid]) {
+            sql = `
+              select s.mid, s.title, m.name, m.face, m.sex, m.sign 
+              from tdd_video_staff s left join tdd_member m on s.mid = m.mid 
+              where aid = ?;`
+            const staffResults = await conn.query(sql, result.aid);
+            const staffList = [];
+            for (const r of staffResults) {
+              staffList.push({
+              mid: r.mid,
+              title: r.title,
+              name: r.name, 
+              face: r.face,
+              sex: r.sex,
+              sign: r.sign,
+              });
+            }
+            videoStaffCache[result.aid] = staffList;
           }
-          videoCache[aid] = {
-            aid: result.aid,
-            bvid: result.bvid,
-            videos: result.videos,
-            tid: result.tid,
-            tname: result.tname,
-            pic: result.pic,
-            title: result.title,
-            pubdate: result.pubdate,
-            desc: result.desc,
-            tags: result.tags,
-            up: {
-              mid: result.mid,
-              sex: result.sex,
-              name: result.name,
-              face: result.face,
-              sign: result.sign,
-            },
-            last_record: {
-              added: result.record_added,
-              view: result.view,
-              danmaku: result.danmaku,
-              reply: result.reply,
-              favorite: result.favorite,
-              coin: result.coin,
-              share: result.share,
-              like: result.like,
-            },
-          };
+          staff = videoStaffCache[result.aid];
+        }
+        videoCache[aid] = {
+          aid: result.aid,
+          bvid: result.bvid,
+          videos: result.videos,
+          tid: result.tid,
+          tname: result.tname,
+          pic: result.pic,
+          title: result.title,
+          pubdate: result.pubdate,
+          desc: result.desc,
+          tags: result.tags,
+          up: {
+            mid: result.mid,
+            sex: result.sex,
+            name: result.name,
+            face: result.face,
+            sign: result.sign,
+          },
+          last_record: {
+            added: result.record_added,
+            view: result.view,
+            danmaku: result.danmaku,
+            reply: result.reply,
+            favorite: result.favorite,
+            coin: result.coin,
+            share: result.share,
+            like: result.like,
+          },
+          staff,
+        };
       }
       videoList.push(videoCache[aid]);
     }
@@ -162,6 +166,27 @@ async function getUpVideos(upMidList, conn) {
     upVideos[mid] = videoList;
   }
   return upVideos;
+}
+
+async function addUpLatestVideo(upInfoList, upVideos) {
+  for (const upInfo of upInfoList) {
+    const upVideoList = upVideos[upInfo.mid];
+    let last_video_uploaded = null;
+    let last_video_participated = null;
+    for (const video of upVideoList) {
+      if (last_video_uploaded && last_video_participated) {
+        break;
+      }
+      if (last_video_participated === null) {
+        last_video_participated = video;
+      }
+      if (video.up.mid === upInfo.mid && last_video_uploaded === null) {
+        last_video_uploaded = video;
+      }
+    }
+    upInfo.last_video_uploaded = last_video_uploaded;
+    upInfo.last_video_participated = last_video_participated;
+  }
 }
 
 exports.main = async function () {
@@ -176,7 +201,21 @@ exports.main = async function () {
   // 步骤3: 获取创作者们的视频列表
   const upVideos = await getUpVideos(upMidList, conn);
 
+  // 步骤4: 根据视频列表，计算创作者的最近投稿（作为UP主投稿、作为UP主投稿或非UP主参与合作，都要算一个）
+  await addUpLatestVideo(upInfoList, upVideos);
+
+  // 步骤5: 保存创作者们的个人信息到数据库
+  await db.collection('up_info')
+    .where({
+        mid: db.command.gt(0)
+    })
+    .remove();  // 先清空所有的信息
+  await db.collection('up_info').add(upInfoList);
+
+  // 步骤6: 保存创作者们的视频列表到数据库，需要重新设计
+  // TODO
+
   conn.end();
 
-  return upVideos;
+  return `Done! Finish update data at ${new Date()}. Got ${upInfoList.length} ups.`;
 };
