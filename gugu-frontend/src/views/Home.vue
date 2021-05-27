@@ -11,11 +11,11 @@
         <a-switch defaultChecked @change="handleSortSwitchChange" style="margin-left: 12px; margin-right: 4px" /> {{ desc ? '从大到小排序' : '从小到大排序' }}
       </div>
     </div>
-    <a-table :columns="columnsToDisplay" :data-source="upInfoListToDisplay">
+    <a-table :columns="columnsToDisplay" :data-source="upInfoListToDisplay" :pagination="false">
       <template slot="up" slot-scope="upInfo">
         <div style="display: flex">
           <a-avatar :src="httpS(upInfo.face)" :size="48" />
-          <div style="max-width: 148px; margin-left: 12px;">
+          <div style="margin-left: 12px">
             <div style="display: flex">
               <span @click="go(`https://tdd.bunnyxt.com/member/${upInfo.mid}`)" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 1.17em; color: rgba(0, 0, 0, 0.85); font-weight: 500; cursor: pointer;" :title="upInfo.name">
                 {{ upInfo.name }}
@@ -39,16 +39,21 @@
               </span>
             </div>
             <div>
-              <a-icon type="video-camera" class="stat-item-icon" style="margin-right: 4px" />
+              <a-icon type="video-camera" style="margin-right: 4px" />
               {{ upInfo.video_count.toLocaleString() }}
-              <a-icon type="team" class="stat-item-icon" style="margin-left: 12px; margin-right: 4px" />
+              <a-icon type="team" style="margin-left: 12px; margin-right: 4px" />
               {{ upInfo.follower.toLocaleString() }}
             </div>
           </div>
         </div>
       </template>
       <template slot="last_video" slot-scope="lastVideo">
-        {{ lastVideo.title }}
+        <div style="width: 100%; position: relative">
+          <div style="width: 100%; height: 3px; background: #e8e8e8; position: absolute; top: 31px; left: 0" />
+          <div style="position: relative; height: 65px; width: calc(100% - 108px)">
+            <img :src="httpS(lastVideo.pic)" width="108" height="65" :style="`position: absolute; left: ${100 - (Math.floor(Date.now() / 1000) - lastVideo.pubdate) / (Math.floor(Date.now() / 1000) - farestPubdate) * 100}%; top: 0`" />
+          </div>
+        </div>
       </template>
       <template slot="time_till_now" slot-scope="lastVideo">
         {{ Math.floor((Math.floor(Date.now() / 1000) - lastVideo.pubdate) / (60 * 60 * 24)) }}天
@@ -81,6 +86,7 @@ export default {
         title: 'UP主',
         scopedSlots: { customRender: 'up' },
         key: 'mid',
+        width: '180px',
       }, {
         title: '最新视频',
         dataIndex: 'last_video_participated',
@@ -140,7 +146,11 @@ export default {
           break;
       }
       return modifiedColumns;
-    }
+    },
+    farestPubdate() {
+      console.log(Math.min(...this.upInfoListToDisplay.map(upInfo => upInfo[`last_video_${this.lastVideoMode}`].pubdate)));
+      return Math.min(...this.upInfoListToDisplay.map(upInfo => upInfo[`last_video_${this.lastVideoMode}`].pubdate));
+    },
   },
   methods: {
     httpS(url) {
