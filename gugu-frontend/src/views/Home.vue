@@ -6,8 +6,7 @@
         <span style="padding-bottom: 24px; font-size: 24px">VU咕咕</span>
       </div>
       <div style="padding-bottom: 32px;">
-        <a-switch defaultChecked @change="handleOnly10kFollowerUpSwitchChange" style="margin-right: 4px" /> {{ only10kFollowerUp ? '只看万粉P主' : '查看所有P主' }}
-        <a-switch defaultChecked @change="handlelastVideoModeSwitchChange" style="margin-left: 12px; margin-right: 4px" /> {{ lastVideoMode === 'participated' ? '包含联合投稿' : '只看本人投稿' }}
+        <a-switch defaultChecked @change="handlelastVideoModeSwitchChange" style="margin-right: 4px" /> {{ lastVideoMode === 'participated' ? '包含联合投稿' : '只看本人投稿' }}
         <a-switch defaultChecked @change="handleSortSwitchChange" style="margin-left: 12px; margin-right: 4px" /> {{ desc ? '从大到小排序' : '从小到大排序' }}
       </div>
     </div>
@@ -42,7 +41,7 @@
               <a-icon type="video-camera" style="margin-right: 4px" />
               {{ upInfo.video_count.toLocaleString() }}
               <a-icon type="team" style="margin-left: 12px; margin-right: 4px" />
-              {{ upInfo.follower.toLocaleString() }}
+              {{ upInfo.last_follower.follower.toLocaleString() }}
             </div>
           </div>
         </div>
@@ -81,7 +80,6 @@ export default {
       upInfoList: [],
       lastVideoMode: 'participated',  // uploaded or participated
       desc: true,
-      only10kFollowerUp: true,
       columns: [{
         title: 'UP主',
         scopedSlots: { customRender: 'up' },
@@ -104,9 +102,6 @@ export default {
   computed: {
     upInfoListToDisplay() {
       let sortedUpInfoList = [...this.upInfoList];
-      if (this.only10kFollowerUp) {
-        sortedUpInfoList = sortedUpInfoList.filter(upInfo => upInfo.follower > 10000);
-      }
       switch (this.lastVideoMode) {
         case 'participated':
           sortedUpInfoList = sortedUpInfoList.filter(info => info.last_video_participated);
@@ -173,9 +168,6 @@ export default {
     handleSortSwitchChange(e) {
       this.desc = e;
     },
-    handleOnly10kFollowerUpSwitchChange(e) {
-      this.only10kFollowerUp = e;
-    }
   },
   created() {
     const app = cloudbase.init({

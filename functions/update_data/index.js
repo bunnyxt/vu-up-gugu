@@ -32,9 +32,12 @@ async function getUpInfoList(upMidList, conn) {
   const upInfoList = [];
   for (const mid of upMidList) {
     let sql = `
-      select m.mid, sex, name, face, sign, video_count,
-        fr.added as follower_added, fr.follower
-      from tdd_member m left join tdd_member_follower_record fr on m.last_follower = fr.id
+      select m.mid, sex, name, face, sign, m.video_count,
+        fr.added as follower_added, fr.follower, 
+        tsr.added as total_stat_added, \`view\`, danmaku, reply, favorite, coin, share, \`like\`
+      from tdd_member m 
+        left join tdd_member_follower_record fr on m.last_follower = fr.id
+        left join tdd_member_total_stat_record tsr on m.last_total_stat = tsr.id
       where m.mid = ?;`;
     let result = await conn.query(sql, mid);
     result = result[0];
@@ -49,8 +52,20 @@ async function getUpInfoList(upMidList, conn) {
       face: result.face,
       sign: result.sign,
       video_count: result.video_count,
-      follower: result.follower,
-      follower_added: result.follower_added,
+      last_follower: {
+        added: result.follower_added,
+        follower: result.follower,
+      },
+      last_total_stat: {
+        added: result.total_stat_added,
+        view: result.view,
+        danmaku: result.danmaku,
+        reply: result.reply,
+        favorite: result.favorite,
+        coin: result.coin,
+        share: result.share,
+        like: result.like,
+      },
     });
   }
 
