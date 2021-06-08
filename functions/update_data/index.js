@@ -15,30 +15,17 @@ const getDbConn = async () => {
 
 async function getUpMidList(conn) {
   let sql = `
-    select v.aid, mid, hasstaff
-    from tdd_video v left join tdd_video_record r on v.laststat = r.id 
-    where v.code = 0 && v.state = 0 && r.view > 1000000;`;
+    select m.mid
+    from tdd_member m left join tdd_member_total_stat_record r on m.last_total_stat = r.id
+    order by r.view desc limit 100;`;
   let results = await conn.query(sql);
 
   let upMidList = [];
-  const hasStaffVideoAids = [];
   for (const r of results) {
-    if (r.hassstaff === 0) {
-      upMidList.push(r.mid);
-    } else {
-      hasStaffVideoAids.push(r.aid);
-    }
+    upMidList.push(r.mid);
   }
 
-  for (const aid of hasStaffVideoAids) {
-    sql = 'select mid from tdd_video_staff where aid = ?;';
-    results = await conn.query(sql, aid);
-    for (const r of results) {
-      upMidList.push(r.mid);
-    }
-  }
-
-  return [...new Set(upMidList)];
+  return upMidList;
 }
 
 async function getUpInfoList(upMidList, conn) {
